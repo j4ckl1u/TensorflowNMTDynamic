@@ -37,33 +37,18 @@ class MyBahdanauAttention(_BaseAttentionMechanism):
 class MyAttentionWrapper(rnn_cell_impl.RNNCell):
     def __init__(self, cell, attention_mechanism,  attention_layer_size=None, alignment_history=False, name=None):
         super(MyAttentionWrapper, self).__init__(name=name)
-        attention_mechanisms = (attention_mechanism,)
         cell_input_fn = (lambda inputs, attention: array_ops.concat([inputs, attention], -1))
-
-        attention_layer_sizes = tuple(attention_layer_size if isinstance(attention_layer_size, (list, tuple))
-                                      else (attention_layer_size,))
-
-        self._attention_layers = tuple(tf.layers.Dense(attention_layer_size, name="attention_layer", use_bias=False)
-                                       for attention_layer_size in attention_layer_sizes)
-        self._attention_layer_size = sum(attention_layer_sizes)
+        self._attention_layer = tf.layers.Dense(attention_layer_size, name="attention_layer", use_bias=False)
+        self._attention_layer_size = attention_layer_size
         self._cell = cell
-        self._attention_mechanisms = attention_mechanisms
+        self._attention_mechanism = attention_mechanism
         self._cell_input_fn = cell_input_fn
         self._alignment_history = alignment_history
         self._initial_cell_state = None
 
-
-    def _batch_size_checks(self, batch_size, error_message):
-        return [tf.assert_equal(batch_size,
-                                attention_mechanism.batch_size,
-                                message=error_message)
-                for attention_mechanism in self._attention_mechanisms]
-
     @property
     def output_size(self):
         return self._attention_layer_size
-
-
 
     @property
     def state_size(self):
@@ -71,7 +56,7 @@ class MyAttentionWrapper(rnn_cell_impl.RNNCell):
             cell_state=self._cell.state_size,
             time=tf.TensorShape([]),
             attention=self._attention_layer_size,
-            alignments=self._attention_mechanisms[0].alignments_size,
+            alignments=self._attention_mechanism.alignments_size,
             alignment_history=())  # sometimes a TensorArray
 
 
@@ -83,7 +68,7 @@ class MyAttentionWrapper(rnn_cell_impl.RNNCell):
             cell_state=cell_state,
             time=array_ops.zeros([], dtype=tf.int32),
             attention=tf.zeros(shape=[batch_size, self._attention_layer_size], dtype = dtype),
-            alignments= self._attention_mechanisms[0].initial_alignments(batch_size, dtype),
+            alignments= self._attention_mechanism.initial_alignments(batch_size, dtype),
             alignment_history=())
 
 
@@ -97,10 +82,8 @@ class MyAttentionWrapper(rnn_cell_impl.RNNCell):
         previous_alignment = state.alignments
         previous_alignment_history = state.alignment_history
 
-        i=0
-        attention_mechanism = self._attention_mechanisms[0]
-        attention, alignments = _compute_attention(attention_mechanism, cell_output, previous_alignment,
-                                                   self._attention_layers[i] if self._attention_layers else None)
+        attention_mechanism = self._attention_mechanism
+        attention, alignments = _compute_attention(attention_mechanism, cell_output, previous_alignment,self._attention_layer )
         alignment_history = previous_alignment_history.write(state.time, alignments) if self._alignment_history else ()
 
         next_state = AttentionWrapperState(
