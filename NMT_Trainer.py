@@ -44,9 +44,8 @@ class NMT_Trainer:
 
 
     def train(self):
-        min_loss, loss = self.model.network(self.inputSrc, self.outputTrg, self.maskTrg, self.lengthSrc,
-                                            self.lengthTrg, self.optimizer)
-        cePerWordBest = 10000
+        min_loss, loss = self.model.createEncoderDecoderNetwork(self.inputSrc, self.outputTrg, self.maskTrg,
+                                                                self.lengthSrc, self.lengthTrg, self.optimizer)
         sess = tf.Session()
         init = tf.global_variables_initializer()
         sess.run(init)
@@ -59,8 +58,8 @@ class NMT_Trainer:
             trainBatch = self.trainData.getTrainBatch()
             (batchSrc, batchTrg, lengthSrc, lengthTrg, srcMask, trgMask) \
                 = self.trainData.buildInput(trainBatch)
-            train_dict = {self.inputSrc:batchSrc, self.outputTrg: batchTrg,
-                          self.lengthSrc: lengthSrc, self.lengthTrg: lengthTrg, self.maskSrc: srcMask, self.maskTrg: trgMask}
+            train_dict = {self.inputSrc:batchSrc, self.outputTrg: batchTrg, self.lengthSrc: lengthSrc,
+                          self.lengthTrg: lengthTrg, self.maskSrc: srcMask, self.maskTrg: trgMask}
             _, cePerWord = sess.run([min_loss, loss], feed_dict=train_dict)
             if (i % 10 == 0):
                 print(str(cePerWord / math.log(2.0)))
